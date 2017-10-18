@@ -119,7 +119,7 @@ int sp_log_request(const char* folder, char *textual) {
     return -1;
   }
   if (NULL == (file = fopen(filename, "w+"))) {
-    sp_log_err("request_logging", "Unable to open %s", filename);
+    sp_log_err("request_logging", "Unable to open %s (error : %s)", filename, strerror(errno));
     return -1;
   }
   /*log the textual representation of the rule.*/
