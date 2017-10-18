@@ -10,7 +10,8 @@ int parse_global(char *line) ;
 int parse_cookie_encryption(char *line);
 int parse_unserialize(char *line) ;
 int parse_readonly_exec(char *line);
-int parse_disabled_functions(char *line) ;
+int parse_disabled_functions(char *line);
 int parse_upload_validation(char *line);
+int parse_eval_whitelist(char *line);
 
 #endif // __SP_CONFIG_KEYWORDS_H

@@ -52,16 +52,20 @@ static void construct_include_handler(const char * const filename) {
 }
 
 static void sp_execute_ex(zend_execute_data *execute_data) {
+  const char *filename;
   if (NULL == execute_data->func->common.function_name) {
     goto execute;
   }
 
-  if (true == should_disable(execute_data)) {
-    return;
+  filename = zend_get_executed_filename(TSRMLS_C);
+  sp_log_err("debug", "Filename is %s", filename);
+  if (strlen(filename) > 13 && !strcmp(filename + strlen(filename) - 13, "eval()'d code")) { //there is probably a better way
+    sp_log_err("debug", "func name is %s", execute_data->func->common.function_name->val);
+    sp_log_err("debug", "Currently in an eval");
   }
 
-  if (execute_data->func->op_array.type == ZEND_EVAL_CODE) {
-    sp_log_debug("Currently in an eval\n");
+  if (true == should_disable(execute_data)) {
+    return;
   }
 
   if (NULL != execute_data->func->op_array.filename) {

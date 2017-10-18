@@ -116,6 +116,17 @@ typedef struct {
 } sp_config_upload_validation;
 
 typedef struct {
+  char *function;
+  pcre *r_function;
+  int simulation;
+
+} sp_eval_whitelist;
+
+typedef struct {
+  sp_node_t *eval_whitelist;
+} sp_config_eval_whitelist;
+
+typedef struct {
   sp_config_random *config_random;
   sp_config_unserialize *config_unserialize;
   sp_config_disabled_functions *config_disabled_functions;
@@ -128,6 +139,7 @@ typedef struct {
   sp_config_global_strict *config_global_strict;
   sp_config_disable_xxe *config_disable_xxe;
   sp_config_disabled_constructs *config_disabled_constructs;
+  sp_config_eval_whitelist *config_eval_whitelist;
 } sp_config;
 
 typedef struct {
@@ -153,6 +165,7 @@ typedef struct {
 #define SP_TOKEN_UNSERIALIZE_HMAC ".unserialize_hmac"
 #define SP_TOKEN_UPLOAD_VALIDATION ".upload_validation"
 #define SP_TOKEN_DISABLE_XXE ".disable_xxe"
+#define SP_TOKEN_EVAL_WHITELIST ".eval_whitelist"
 
 // common tokens
 #define SP_TOKEN_ENABLE ".enable("

@@ -315,3 +315,22 @@ int parse_upload_validation(char *line) {
 
   return ret;
 }
+
+
+int parse_eval_whitelist(char *line) {
+  int ret = 0;
+  sp_eval_whitelist *wl = pecalloc(sizeof(*wl), 1, 1);
+
+  sp_config_functions sp_config_funcs_eval_whitelist[] = {
+      {parse_str, SP_TOKEN_FUNCTION, &wl->function},
+      {parse_str, SP_TOKEN_FUNCTION_REGEXP, &wl->r_function},
+      {0}};
+
+  ret = parse_keywords(sp_config_funcs_eval_whitelist, line);
+  if (0 != ret) {
+    return ret;
+  }
+
+ 
+  return SUCCESS;
+}
