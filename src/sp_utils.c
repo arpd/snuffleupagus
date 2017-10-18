@@ -125,7 +125,7 @@ int sp_log_request(const char* folder, char *textual) {
   /*log the textual representation of the rule.*/
   fprintf(file, "RULE:%s\n", textual);
   /*dump request content*/
-  for (size_t i = 0; i < (sizeof(zones) / sizeof(zones[0])) - 1; i++) {
+  for (size_t i = 0; zones[i].key; i++) {
     zval	*variable_value;
     zend_string *variable_key;
     zend_string *key, *val;
@@ -140,12 +140,13 @@ int sp_log_request(const char* folder, char *textual) {
 
     /* Iterate sections, basee64 encode and dumo to file key:value */
     ZEND_HASH_FOREACH_STR_KEY_VAL(ht, variable_key, variable_value) {
-      key = php_base64_encode((const unsigned char *) ZSTR_VAL(variable_key), strlen(ZSTR_VAL(variable_key)));
+      key = php_base64_encode((const unsigned char *) ZSTR_VAL(variable_key), ZSTR_LEN(variable_key));
       converted = sp_convert_to_string(variable_value);
       val = php_base64_encode((const unsigned char *) converted, strlen(converted));
       fprintf(file, "%s:%s\n", ZSTR_VAL(key), ZSTR_VAL(val));
       zend_string_release(key);
       zend_string_release(val);
+      efree(converted);
     }
     ZEND_HASH_FOREACH_END();
   }
