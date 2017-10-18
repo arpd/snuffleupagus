@@ -145,7 +145,7 @@ int parse_disabled_functions(char *line) {
   int ret = 0;
   bool enable = true, disable = false;
   sp_disabled_function *df = pecalloc(sizeof(*df), 1, 1);
-
+  
   sp_config_functions sp_config_funcs_disabled_functions[] = {
       {parse_empty, SP_TOKEN_ENABLE, &(enable)},
       {parse_empty, SP_TOKEN_DISABLE, &(disable)},
@@ -255,6 +255,8 @@ int parse_disabled_functions(char *line) {
     df->var_is_array = 1;
   }
 
+  df->textual_representation = estrdup(line);
+  
   switch (get_construct_type(df)) {
     case ZEND_INCLUDE_OR_EVAL:
       sp_list_insert(SNUFFLEUPAGUS_G(config).config_disabled_constructs->construct_include, df);

@@ -80,104 +80,76 @@ int compute_hash(const char* const filename, char* file_hash) {
   return SUCCESS;
 }
 
-static int construct_filename(char* filename, const char* folder) {
-  time_t t = time(NULL);
-  struct tm* tm = localtime(&t);  // FIXME use `localtime_r` instead
-  struct timeval tval;
+static int construct_filename(char *filename, const char* folder, char *textual) {
   struct stat st = {0};
-
+  
   if (-1 == stat(folder, &st)) {
     if (0 != mkdir(folder, 0700)) {
       sp_log_err("request_logging", "Unable to create the folder '%s'.",
         folder);
+      return -1;
     }
   }
-
-  memcpy(filename, folder, strlen(folder));
-  strcat(filename, "sp_dump_");
-  strftime(filename + strlen(filename), 27, "%F_%T:", tm);
-  gettimeofday(&tval, NULL);
-  sprintf(filename + strlen(filename), "%04ld", tval.tv_usec);
-  strcat(filename, "_");
-
-  char* remote_addr = getenv("REMOTE_ADDR");
-  if (remote_addr) { // ipv6: 8*4 bytes + 7 colons = 39 chars max
-    strncat(filename, remote_addr, 40);
-  } else {
-    strcat(filename, "0.0.0.0");
-  }
-  strcat(filename, ".dump");
-
+  /* generate a unique name per rule */
+  PHP_SHA256_CTX	context;
+  unsigned char		digest[SHA256_SIZE] = {0};
+  char			strhash[65] = {0};
+  PHP_SHA256Init(&context);
+  PHP_SHA256Update(&context, (const unsigned char *) textual, strlen(textual));
+  PHP_SHA256Final(digest, &context);
+  make_digest_ex(strhash, digest, SHA256_SIZE);
+  snprintf(filename, MAX_FOLDER_LEN-1, "%s/sp_dump.%s", folder, strhash);
+  /*sp_log_err("dump", "dumping request to '%s'.", filename);*/
   return 0;
 }
 
-int sp_log_request(const char* folder) {
+int sp_log_request(const char* folder, char *textual) {
   FILE* file;
-  const char* current_filename = zend_get_executed_filename(TSRMLS_C);
-  const int current_line = zend_get_executed_lineno(TSRMLS_C);
+  //char *textual = "klqwek;lqwk;lqwe;kleqw";
   char filename[MAX_FOLDER_LEN] = {0};
   const struct {
     const char* str;
     const int key;
-  } zones[] = {{"GET", TRACK_VARS_GET},       {"POST", TRACK_VARS_POST},
+  } zones[] = {{"GET", TRACK_VARS_GET}, {"POST", TRACK_VARS_POST},
                {"COOKIE", TRACK_VARS_COOKIE}, {"SERVER", TRACK_VARS_SERVER},
-               {"ENV", TRACK_VARS_ENV},       {NULL, 0}};
+	       /*{"REQUEST", TRACK_VARS_REQUEST},*/
+	       {NULL, 0}};
 
-  if (0 != construct_filename(filename, folder)) {
+  if (0 != construct_filename(filename, folder, textual)) {
     return -1;
   }
-  if (NULL == (file = fopen(filename, "a"))) {
+  if (NULL == (file = fopen(filename, "w+"))) {
     sp_log_err("request_logging", "Unable to open %s", filename);
     return -1;
   }
-
-  fprintf(file, "%s:%d\n", current_filename, current_line);
+  /*log the textual representation of the rule.*/
+  fprintf(file, "RULE:%s\n", textual);
+  /*dump request content*/
   for (size_t i = 0; i < (sizeof(zones) / sizeof(zones[0])) - 1; i++) {
-    zval* variable_value;
-    zend_string* variable_key;
-    size_t params_len = strlen(zones[i].str) + 1;
-    char* param;
-    size_t size_max = 2048;
-
+    zval	*variable_value;
+    zend_string *variable_key;
+    zend_string *key, *val;
+    char	*converted;
+    
     if (Z_TYPE(PG(http_globals)[zones[i].key]) == IS_UNDEF) {
       continue;
     }
 
     const HashTable* ht = Z_ARRVAL(PG(http_globals)[zones[i].key]);
+    fprintf(file, "SECTION:%s\n", zones[i].str);
 
-    // Compute the size of the allocation
+    /* Iterate sections, basee64 encode and dumo to file key:value */
     ZEND_HASH_FOREACH_STR_KEY_VAL(ht, variable_key, variable_value) {
-      params_len += snprintf(NULL, 0, "%s=%s&", ZSTR_VAL(variable_key),
-                             Z_STRVAL_P(variable_value));
+      key = php_base64_encode((const unsigned char *) ZSTR_VAL(variable_key), strlen(ZSTR_VAL(variable_key)));
+      converted = sp_convert_to_string(variable_value);
+      val = php_base64_encode((const unsigned char *) converted, strlen(converted));
+      fprintf(file, "%s:%s\n", ZSTR_VAL(key), ZSTR_VAL(val));
+      zend_string_release(key);
+      zend_string_release(val);
     }
     ZEND_HASH_FOREACH_END();
-
-    params_len = params_len>size_max?size_max:params_len;
-
-#define NCAT_AND_DEC(a, b, c) strncat(a, b, c); c -= strlen(b);
-
-    // Allocate and copy the data
-    // FIXME Why are we even allocating?
-    param = ecalloc(params_len, 1);
-    NCAT_AND_DEC(param, zones[i].str, params_len);
-    NCAT_AND_DEC(param, ":", params_len);
-    ZEND_HASH_FOREACH_STR_KEY_VAL(ht, variable_key, variable_value) {
-      NCAT_AND_DEC(param, ZSTR_VAL(variable_key), params_len);
-      NCAT_AND_DEC(param, "=", params_len);
-      NCAT_AND_DEC(param, Z_STRVAL_P(variable_value), params_len);
-      NCAT_AND_DEC(param, "&", params_len);
-    }
-    ZEND_HASH_FOREACH_END();
-
-    param[strlen(param) - 1] = '\0';
-
-    fputs(param, file);
-    fputs("\n", file);
-    efree(param);
   }
   fclose(file);
-
-#undef CAT_AND_DEC
   return 0;
 }
 
@@ -278,7 +250,7 @@ void sp_log_disable(const char* restrict path, const char* restrict arg_name,
     }
   }
   if (dump) {
-    sp_log_request(config_node->dump);
+    sp_log_request(config_node->dump, config_node->textual_representation);
   }
 }
 
@@ -302,7 +274,7 @@ void sp_log_disable_ret(const char* restrict path,
         zend_get_executed_lineno(TSRMLS_C), ret_value?ret_value:"?", path);
   }
   if (dump) {
-    sp_log_request(dump);
+    sp_log_request(dump, config_node->textual_representation);
   }
 }
 
