@@ -316,6 +316,19 @@ The following rules will:
   sp.disable_function.function("system").param("cmd").value_r("^ping").drop().simulation();
   sp.disable_function.function("system").param("cmd").drop();
 
+
+RIPS' blog articles virtual-patches
+"""""""""""""""""""""""""""""""""""
+
+The `blog of the RIPS scanner <https://blog.ripstech.com/>`__ often contains
+interesting vulnerabilities, that we used, among other things,
+to check if our syntax was good enough to patch *real world bugs* ™.
+
+The resulting set of rules, that you can get
+`here <https://github.com/nbs-system/snuffleupagus/blob/master/config/examples.ini>`__,
+serves as a great example of the snuffleupagus' power:
+most of the time, the virtual-patch is simple and readable, and fits in a single line.
+
 Miscellaneous examples
 """"""""""""""""""""""
 
